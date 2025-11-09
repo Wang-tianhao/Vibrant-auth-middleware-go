@@ -46,3 +46,7 @@ bin/
 # Temporary files
 tmp/
 temp/
+
+#binaries
+main
+tokengen
