@@ -1,0 +1,163 @@
+# Error Response Contracts
+# Defines HTTP 401 response schemas for JWT validation failures
+
+openapi: 3.0.3
+info:
+  title: JWT Auth Middleware Error Responses
+  version: 2.0.0
+  description: |
+    Contract for HTTP 401 Unauthorized responses returned by the JWT authentication middleware
+    when token validation fails. This contract applies to both Gin and gRPC middleware.
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - reason
+      properties:
+        error:
+          type: string
+          enum: [unauthorized]
+          description: Always "unauthorized" for authentication failures
+        reason:
+          type: string
+          enum:
+            - EXPIRED
+            - INVALID_SIGNATURE
+            - MISSING_TOKEN
+            - MALFORMED
+            - UNSUPPORTED_ALGORITHM
+            - MALFORMED_ALGORITHM_HEADER
+            - NONE_ALGORITHM
+            - CONFIG_ERROR
+          description: |
+            Error code indicating the specific failure reason.
+
+            - EXPIRED: Token has expired (exp claim) or not yet valid (nbf claim)
+            - INVALID_SIGNATURE: Token signature verification failed
+            - MISSING_TOKEN: No token found in Authorization header or cookie
+            - MALFORMED: Token structure is invalid or required claims missing
+            - UNSUPPORTED_ALGORITHM: Token algorithm not configured (NEW in v2.0)
+            - MALFORMED_ALGORITHM_HEADER: Token `alg` header is not a string (NEW in v2.0)
+            - NONE_ALGORITHM: Token uses prohibited `none` algorithm
+            - CONFIG_ERROR: Middleware misconfiguration (should not occur in production)
+
+    # Extended error response with detail message (optional future enhancement)
+    DetailedErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+      properties:
+        message:
+          type: string
+          description: |
+            Human-readable error message. For UNSUPPORTED_ALGORITHM, includes list of
+            available algorithms (e.g., "algorithm ES256 not supported (available: HS256, RS256)").
+          example: "algorithm ES256 not supported (available: HS256, RS256)"
+
+  examples:
+    ExpiredToken:
+      summary: Token has expired
+      value:
+        error: unauthorized
+        reason: EXPIRED
+
+    InvalidSignature:
+      summary: Token signature verification failed
+      value:
+        error: unauthorized
+        reason: INVALID_SIGNATURE
+
+    MissingToken:
+      summary: No token provided
+      value:
+        error: unauthorized
+        reason: MISSING_TOKEN
+
+    MalformedToken:
+      summary: Token structure is invalid
+      value:
+        error: unauthorized
+        reason: MALFORMED
+
+    UnsupportedAlgorithm:
+      summary: Token uses algorithm not configured in middleware (NEW in v2.0)
+      value:
+        error: unauthorized
+        reason: UNSUPPORTED_ALGORITHM
+
+    UnsupportedAlgorithmWithMessage:
+      summary: Unsupported algorithm with detail message (NEW in v2.0)
+      value:
+        error: unauthorized
+        reason: UNSUPPORTED_ALGORITHM
+        message: "algorithm ES256 not supported (available: HS256, RS256)"
+
+    MalformedAlgorithmHeader:
+      summary: Token alg header is not a string (NEW in v2.0)
+      value:
+        error: unauthorized
+        reason: MALFORMED_ALGORITHM_HEADER
+
+    NoneAlgorithm:
+      summary: Token uses prohibited none algorithm
+      value:
+        error: unauthorized
+        reason: NONE_ALGORITHM
+
+responses:
+  UnauthorizedError:
+    description: Authentication failed
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/ErrorResponse'
+        examples:
+          ExpiredToken:
+            $ref: '#/components/examples/ExpiredToken'
+          InvalidSignature:
+            $ref: '#/components/examples/InvalidSignature'
+          MissingToken:
+            $ref: '#/components/examples/MissingToken'
+          MalformedToken:
+            $ref: '#/components/examples/MalformedToken'
+          UnsupportedAlgorithm:
+            $ref: '#/components/examples/UnsupportedAlgorithm'
+          MalformedAlgorithmHeader:
+            $ref: '#/components/examples/MalformedAlgorithmHeader'
+          NoneAlgorithm:
+            $ref: '#/components/examples/NoneAlgorithm'
+
+  DetailedUnauthorizedError:
+    description: Authentication failed with detail message (optional)
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/DetailedErrorResponse'
+        examples:
+          UnsupportedAlgorithmWithMessage:
+            $ref: '#/components/examples/UnsupportedAlgorithmWithMessage'
+
+# Backward Compatibility Notes
+x-compatibility:
+  version: 2.0.0
+  breaking-changes: false
+  notes: |
+    - New error codes added: UNSUPPORTED_ALGORITHM, MALFORMED_ALGORITHM_HEADER
+    - Existing error codes unchanged and retain same semantics
+    - ALGORITHM_MISMATCH deprecated (use UNSUPPORTED_ALGORITHM)
+    - Response structure unchanged (error + reason fields)
+    - Optional `message` field may be added in future (non-breaking)
+
+# Security Considerations
+x-security:
+  information-disclosure: |
+    - Error messages MUST NOT expose secret keys, tokens, or sensitive configuration
+    - Listing available algorithms (e.g., "available: HS256, RS256") is safe as this
+      is public information (equivalent to JWKS endpoint metadata)
+    - Token preview in logs limited to first 20 characters for correlation only
+  timing-attacks: |
+    - Error responses return immediately without artificial delays
+    - Algorithm routing uses standard map lookup (timing differences negligible)
+    - Constant-time comparison not required for algorithm names (public information)
