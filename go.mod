@@ -1,4 +1,4 @@
-module github.com/user/vibrant-auth-middleware-go
+module github.com/Wang-tianhao/Vibrant-auth-middleware-go
 
 go 1.24.0
 
